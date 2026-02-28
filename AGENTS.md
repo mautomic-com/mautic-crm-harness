@@ -29,12 +29,42 @@ It is the map — not the manual. Start here, then follow pointers to deeper doc
 
 ```
 /Users/maciejlukianski/projects/mautic/
-├── mautic-crm-harness/     # This repo
-├── mautic-crm-bundle/      # Plugin repo (NOT YET checked out separately)
-└── mautic-001/              # Mautic 7 installation
+├── mautic-crm-harness/     # This repo (specs, backlog, harness scripts)
+└── mautic-001/              # Mautic 7 installation (DO NOT MODIFY)
     └── plugins/
-        └── MautomicCrmBundle/  # Plugin code (also a git repo)
+        └── MautomicCrmBundle/  # Plugin code — its own git repo → mautomic-com/mautic-crm-bundle
 ```
+
+The plugin directory inside Mautic is a separate git repo.
+This is the **workspace** the agent opens in Cursor.
+
+## Golden Rule
+
+**Do NOT modify any files in the Mautic installation.** The Mautic repo is upstream.
+Only modify files inside `plugins/MautomicCrmBundle/` — that is the plugin repo workspace.
+The plugin repo has its own `AGENTS.md` and `CLAUDE.md` as entry points.
+
+When the agent works on a feature:
+- Workspace = `mautic-001/plugins/MautomicCrmBundle/` (the plugin git repo)
+- Mautic is infrastructure only — cloned by CI from `https://github.com/mautic/mautic.git` branch `7.x`
+- No custom config, no custom AGENTS.md, no patches to Mautic — everything self-contained in the plugin
+
+## CI Architecture
+
+GitHub Actions in the plugin repo (`.github/workflows/pr-validate.yml`) runs 4 jobs:
+
+1. **Lint (PHPStan + CS)** — clones Mautic, symlinks plugin, builds test cache, runs phpstan level 6 + cs-fixer
+2. **Unit Tests** — clones Mautic, symlinks plugin, runs `bin/phpunit` on Unit tests
+3. **Functional Tests** — same + MySQL 8.4 service, runs functional tests with MauticMysqlTestCase
+4. **Architecture Validation** — standalone checks on plugin structure
+
+Key CI details matching Mautic's own CI:
+- PHPStan needs `var/cache/test/AppKernelTestDebugContainer.xml` — built by `APP_ENV=test bin/console`
+- Uses `bin/phpstan` and `bin/php-cs-fixer` (not vendor/bin/)
+- Functional tests use `.env.test` from Mautic + dynamic `DB_PORT` from service
+- No `mautic:install` needed — test framework handles DB setup
+
+Branch protection on `main` requires all 4 CI jobs to pass before merging.
 
 ## Core Beliefs
 
@@ -49,6 +79,7 @@ Summary:
 6. Models extend `FormModel` for entity business logic.
 7. All strings go through translations (`messages.ini`), never hardcoded.
 8. **Every bug found becomes a test** — regressions are unacceptable.
+9. **Never modify upstream Mautic files** — the plugin must be self-contained.
 
 ---
 
