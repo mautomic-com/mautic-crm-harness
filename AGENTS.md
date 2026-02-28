@@ -125,15 +125,42 @@ Open the Mautic UI at `https://mautic-001.ddev.site` using the browser tools
 (Cursor IDE browser MCP or browser-use subagent).
 
 Execute **every** browser smoke test listed in the feature spec.
-For each test:
-1. Navigate to the specified URL
-2. Perform the specified actions
-3. Verify the expected result
-4. If it fails → fix the code → re-run automated checks → retry
-
-**You must verify EVERY smoke test passes before proceeding.**
-
 Login credentials: `admin` / `Maut1cR0cks!`
+
+**Follow this exact recipe for each test to avoid retries:**
+
+```
+1. browser_navigate → direct URL (see URL list in plugin AGENTS.md)
+2. browser_navigate → javascript:void(document.querySelector('.sf-toolbar')&&(document.querySelector('.sf-toolbar').style.display='none'))
+3. browser_snapshot → interactive: true, compact: true
+4. browser_fill / browser_click as needed
+5. To save forms: browser_navigate → javascript:void(document.querySelector('form')?.submit())
+6. browser_take_screenshot to verify result
+```
+
+**Critical rules (skipping these causes retries):**
+
+| Rule | Why |
+|------|-----|
+| Always hide `.sf-toolbar` after navigation | Debug toolbar overlaps bottom elements, intercepting clicks |
+| Navigate direct to URLs, don't click menus | Faster and avoids stale refs from AJAX page loads |
+| Submit forms via JS, not Save button | Save & Close is in a dropdown whose refs go stale instantly |
+| Use `interactive: true, compact: true` on snapshots | Reduces 800+ lines to ~50, faster to parse |
+| Use screenshots for visual verification | Snapshot text misses table content; screenshots show everything |
+| Fresh snapshot before every click | Mautic uses AJAX — refs go stale after any page change |
+| `browser_resize` to 1280x1024 at start | Prevents toolbar overlap on short viewports |
+
+**Mautic URL patterns:**
+```
+/s/mautomic/pipelines              — list
+/s/mautomic/pipelines/view/{id}    — detail
+/s/mautomic/pipelines/edit/{id}    — edit
+/s/mautomic/pipelines/new          — new
+/s/mautomic/deals                  — list  (same pattern for /view/ /edit/ /new)
+/s/mautomic/tasks                  — list  (same pattern)
+```
+
+If a test fails → fix the code → re-run automated checks → retry the test.
 
 ### Step 6: Push and Create PR
 
@@ -221,6 +248,12 @@ Lessons learned from Phase 1. **Read these before coding.**
 | Pipeline/Stage required on Deal | DB columns are NOT NULL. Default pipeline+stage in `DealModel::getEntity()` and enforce in `saveEntity()`. |
 | Mautic cache | After entity changes, clear test cache: `ddev exec rm -rf var/cache/test` |
 | Functional tests | Must use `-c app/phpunit.xml.dist` flag for `KERNEL_CLASS` env var. |
+| PHPStan needs cache | Build first: `ddev exec bash -c 'APP_ENV=test APP_DEBUG=1 php bin/console > /dev/null 2>&1'` |
+| Browser: debug toolbar | Always hide after nav: JS `document.querySelector('.sf-toolbar').style.display='none'` |
+| Browser: form submit | Use JS `document.querySelector('form')?.submit()` — Save dropdown refs go stale |
+| Browser: direct URLs | Navigate to `/s/mautomic/{entity}/view/{id}` directly, don't click through menus |
+| Browser: snapshots | Use `interactive: true, compact: true` — reduces 800+ lines to ~50 |
+| Browser: resize first | Set 1280x1024 at session start to avoid toolbar overlap on short viewports |
 
 ## Commands
 
