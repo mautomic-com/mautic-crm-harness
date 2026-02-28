@@ -10,18 +10,30 @@ It is the map — not the manual. Start here, then follow pointers to deeper doc
 | Architecture overview | [ARCHITECTURE.md](ARCHITECTURE.md)         |
 | Product specs         | [docs/product-specs/](docs/product-specs/) |
 | Design docs           | [docs/design-docs/](docs/design-docs/)     |
-| Execution plans       | [docs/exec-plans/](docs/exec-plans/)       |
+| Feature backlog       | [docs/exec-plans/backlog/](docs/exec-plans/backlog/) |
+| Feature template      | [docs/exec-plans/templates/FEATURE_TEMPLATE.md](docs/exec-plans/templates/FEATURE_TEMPLATE.md) |
+| Completed features    | [docs/exec-plans/done/](docs/exec-plans/done/) |
 | Coding standards      | [docs/CODING_STANDARDS.md](docs/CODING_STANDARDS.md) |
 | Testing strategy      | [docs/TESTING.md](docs/TESTING.md)         |
-| Quality scores        | [docs/QUALITY_SCORE.md](docs/QUALITY_SCORE.md) |
 | Mautic references     | [docs/references/](docs/references/)       |
 
-## Repository Layout
+## Repositories
+
+| Repo | GitHub | Purpose |
+|------|--------|---------|
+| mautic-crm-bundle | [mautomic-com/mautic-crm-bundle](https://github.com/mautomic-com/mautic-crm-bundle) | The actual plugin code |
+| mautic-crm-harness | [mautomic-com/mautic-crm-harness](https://github.com/mautomic-com/mautic-crm-harness) | Development infrastructure, specs, backlog |
+| mautic-001 | Local only (Mautic fork) | Mautic 7 installation for local dev |
+
+### Local Layout
 
 ```
-mautic-crm-harness/          # This repo — development infrastructure
-mautic-crm-bundle/           # Sibling repo — the actual plugin code
-mautic-001/                   # Sibling — Mautic 7 installation
+/Users/maciejlukianski/projects/mautic/
+├── mautic-crm-harness/     # This repo
+├── mautic-crm-bundle/      # Plugin repo (NOT YET checked out separately)
+└── mautic-001/              # Mautic 7 installation
+    └── plugins/
+        └── MautomicCrmBundle/  # Plugin code (also a git repo)
 ```
 
 ## Core Beliefs
@@ -32,48 +44,125 @@ Summary:
 1. Every quality rule must be mechanically enforced, not just documented.
 2. Tests are mandatory — no PR merges without passing tests.
 3. Follow Mautic 7 patterns exactly — don't invent new conventions.
-4. Entities use `loadMetadata()` with `ClassMetadataBuilder`, not annotations/attributes for ORM.
+4. Entities use `loadMetadata()` with `ClassMetadataBuilder`, not annotations/attributes.
 5. Controllers extend `AbstractStandardFormController` for CRUD.
 6. Models extend `FormModel` for entity business logic.
 7. All strings go through translations (`messages.ini`), never hardcoded.
+8. **Every bug found becomes a test** — regressions are unacceptable.
 
-## Working on the Plugin
+---
 
-### Before making changes
-1. Read the relevant product spec in `docs/product-specs/`
-2. Check for an active execution plan in `docs/exec-plans/active/`
-3. Review `docs/CODING_STANDARDS.md` for Mautic-specific rules
+## Agent Workflow: Feature Implementation
 
-### After making changes
-1. Run `harness/lint.sh` — must pass PHPStan level 6 and CS check
-2. Run `harness/test.sh` — all PHPUnit tests must pass
-3. Run `harness/validate-architecture.sh` — structural checks must pass
-4. Update `docs/QUALITY_SCORE.md` if adding a new domain or layer
+**This is the mandatory workflow for every feature. Do not skip steps.**
 
-### Validating a PR
-Run `harness/validate-pr.sh` which executes all of the above in sequence.
-
-## Plugin Structure (mautic-crm-bundle/)
+### Step 1: Read the Feature Spec
 
 ```
-MautomicCrmBundle.php          # Bundle class (extends PluginBundleBase)
-composer.json                  # type: mautic-plugin, requires mautic/core-lib ^7.0
-Config/
-  config.php                   # Routes, menu items, categories, parameters
-  services.php                 # Symfony DI (autowire, autoconfigure)
-Entity/                        # Doctrine entities + repositories
-Controller/                    # CRUD controllers (extend AbstractStandardFormController)
-  Api/                         # API controllers
-Model/                         # Business logic (extend FormModel)
-Form/Type/                     # Symfony form types
-Security/Permissions/          # Permission definitions
-EventListener/                 # Event subscribers
-Event/                         # Custom event objects
-Resources/views/               # Twig templates
-Translations/en_US/            # Translation strings
-Tests/
-  Unit/                        # PHPUnit unit tests
-  Functional/                  # PHPUnit functional tests (extend MauticMysqlTestCase)
+Read docs/exec-plans/backlog/feature-NNN-*.md
+```
+
+Understand all acceptance criteria, browser smoke tests, and technical notes.
+If anything is unclear, ask before starting.
+
+### Step 2: Create a Feature Branch
+
+```bash
+cd /path/to/mautic-001/plugins/MautomicCrmBundle
+git checkout main && git pull
+git checkout -b feature/NNN-short-name
+```
+
+### Step 3: Build the Feature
+
+Write the code following Mautic patterns. Reference `docs/references/` if needed.
+
+### Step 4: Run Automated Checks (ALL must pass)
+
+```bash
+# From Mautic root
+../mautic-crm-harness/harness/test-local.sh .      # Unit + Functional tests
+../mautic-crm-harness/harness/lint-local.sh .       # PHPStan + CS Fixer
+```
+
+If tests fail, fix them. If PHPStan reports errors, fix them.
+**Do NOT proceed until all checks pass.**
+
+### Step 5: Browser Smoke Tests (MANDATORY)
+
+Open the Mautic UI at `https://mautic-001.ddev.site` using the browser tools
+(Cursor IDE browser MCP or browser-use subagent).
+
+Execute **every** browser smoke test listed in the feature spec.
+For each test:
+1. Navigate to the specified URL
+2. Perform the specified actions
+3. Verify the expected result
+4. If it fails → fix the code → re-run automated checks → retry
+
+**You must verify EVERY smoke test passes before proceeding.**
+
+Login credentials: `admin` / `Maut1cR0cks!`
+
+### Step 6: Push and Create PR
+
+```bash
+git add -A
+git commit -m "feat: [description of what was built]"
+git push -u origin feature/NNN-short-name
+gh pr create --title "Feature NNN: [title]" --body "..."
+```
+
+The PR body must include:
+- Summary of changes
+- Test results (number of tests, all passing)
+- Browser smoke test results (each test listed with PASS)
+- Any decisions made (add to feature spec decision log)
+
+### Step 7: Wait for CI
+
+GitHub Actions will run automatically on the PR:
+- PHPStan level 6
+- Coding Standards
+- Unit Tests
+- Functional Tests
+- Architecture Validation
+
+**If CI fails, fix the issue and push again. Do NOT report back until CI is green.**
+
+### Step 8: Report Back
+
+Only after ALL of the following are true:
+- [ ] All automated checks pass locally
+- [ ] All browser smoke tests pass
+- [ ] PR is created
+- [ ] CI is green
+
+Report back with:
+1. PR URL
+2. Summary of what was built
+3. Any decisions or trade-offs made
+4. Updated feature spec (move to `docs/exec-plans/done/` if complete)
+
+---
+
+## Plugin Structure
+
+```
+MautomicCrmBundle/
+├── .github/workflows/     # CI pipeline
+├── Config/                # Bundle config + services
+├── Controller/            # CRUD + API controllers
+├── Entity/                # Doctrine entities + repositories
+├── Event/                 # Custom events
+├── Form/Type/             # Symfony form types
+├── Model/                 # Business logic (FormModel)
+├── Resources/views/       # Twig templates
+├── Security/Permissions/  # Permission definitions
+├── Tests/
+│   ├── Unit/              # PHPUnit unit tests
+│   └── Functional/        # PHPUnit functional tests
+└── Translations/en_US/    # Translation strings
 ```
 
 ## Key Entities
@@ -86,39 +175,47 @@ Tests/
 | Task     | mautomic_tasks     | Action item with due date and assignee       |
 | Note     | mautomic_notes     | Text record on a deal or contact             |
 
+## Known Patterns & Pitfalls
+
+Lessons learned from Phase 1. **Read these before coding.**
+
+| Pattern | What to do |
+|---------|------------|
+| Detail view buttons | Split `page_actions` into `preHeader` block (close) and `actions` block (edit/delete). Never put `close` with edit/delete in same include. |
+| `UserListType` on entities | Use `IdToEntityModelTransformer` + `multiple: false`. Never use raw UserListType — it returns an array, entity setters expect User object. |
+| Route naming | Routes must use `mautic_mautomic_crm_{entity}` prefix. `routeBase` = `mautomic_crm_{entity}`. |
+| API controllers | Use constructor injection, not `initialize()`. Set model via `ModelFactory`. |
+| `entityNameMulti` in API | Must match the `name` in config.php `api_routes` (e.g., `mautomic_pipelines` not `pipelines`). |
+| Entity nullable ints | If a form field can submit empty, setter should accept `?int` with `??= 0` fallback. |
+| Pipeline/Stage required on Deal | DB columns are NOT NULL. Default pipeline+stage in `DealModel::getEntity()` and enforce in `saveEntity()`. |
+| Mautic cache | After entity changes, clear test cache: `ddev exec rm -rf var/cache/test` |
+| Functional tests | Must use `-c app/phpunit.xml.dist` flag for `KERNEL_CLASS` env var. |
+
 ## Commands
 
-All harness commands scope PHPStan and CS Fixer to the plugin only — never the full Mautic codebase.
+All scoped to the plugin only — never the full Mautic codebase.
 
 ```bash
-# Setup (from harness repo root)
-./harness/setup.sh /path/to/mautic /path/to/plugin
+# Local / DDEV (recommended)
+../mautic-crm-harness/harness/test-local.sh .       # Unit + Functional tests
+../mautic-crm-harness/harness/lint-local.sh .        # PHPStan + CS
+../mautic-crm-harness/harness/lint-local.sh . --fix  # Auto-fix CS
 
-# CI / non-DDEV (runs php directly)
-./harness/lint.sh /path/to/mautic           # PHPStan + CS on plugin only
-./harness/test.sh /path/to/mautic           # Unit + Functional tests on plugin only
-./harness/validate-architecture.sh /path/to/plugin
-./harness/validate-pr.sh /path/to/mautic /path/to/plugin  # All 3 in sequence
-
-# Local / DDEV (runs inside ddev container)
-./harness/test-local.sh /path/to/mautic     # Unit + Functional tests via ddev
-./harness/lint-local.sh /path/to/mautic     # PHPStan + CS via ddev
-./harness/lint-local.sh /path/to/mautic --fix  # Auto-fix CS issues
-```
-
-### Quick DDEV one-liners (from Mautic root)
-
-```bash
-# Tests
+# Quick DDEV one-liners (from Mautic root)
 ddev exec php bin/phpunit plugins/MautomicCrmBundle/Tests/Unit/ --testdox
 ddev exec php bin/phpunit -c app/phpunit.xml.dist plugins/MautomicCrmBundle/Tests/Functional/ --testdox
-
-# PHPStan (plugin only)
 ddev exec php bin/phpstan analyse plugins/MautomicCrmBundle/ --level 6
-
-# CS check (plugin only)
 ddev exec bin/php-cs-fixer fix plugins/MautomicCrmBundle/ --dry-run --diff --config=.php-cs-fixer.php
-
-# CS auto-fix (plugin only)
-ddev exec bin/php-cs-fixer fix plugins/MautomicCrmBundle/ --config=.php-cs-fixer.php
 ```
+
+## Feature Backlog
+
+| # | Feature | Status | Spec |
+|---|---------|--------|------|
+| 001 | Phase 1 Bug Fixes & Polish | Backlog | [feature-001](docs/exec-plans/backlog/feature-001-phase1-bugfixes.md) |
+| 002 | Task-Deal Linking | Backlog | [feature-002](docs/exec-plans/backlog/feature-002-task-deal-linking.md) |
+| 003 | Notes & Activity Timeline | Backlog | [feature-003](docs/exec-plans/backlog/feature-003-notes-timeline.md) |
+| 004 | Deal Stage Movement & History | Backlog | [feature-004](docs/exec-plans/backlog/feature-004-deal-stage-moves.md) |
+| 005 | Pipeline Board View (Kanban) | Backlog | [feature-005](docs/exec-plans/backlog/feature-005-deal-board-view.md) |
+| 006 | Campaign Triggers & Actions | Backlog | [feature-006](docs/exec-plans/backlog/feature-006-campaign-triggers.md) |
+| 007 | Custom Deal Fields | Backlog | [feature-007](docs/exec-plans/backlog/feature-007-custom-deal-fields.md) |
