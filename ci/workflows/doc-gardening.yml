@@ -1,0 +1,39 @@
+name: Doc Gardening
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'  # Every Monday at 6am UTC
+  workflow_dispatch:
+
+jobs:
+  check-docs:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout harness
+        uses: actions/checkout@v4
+
+      - name: Check for broken internal links
+        run: |
+          echo "=== Checking for broken internal links in docs ==="
+          EXIT_CODE=0
+          for md_file in $(find docs -name '*.md'); do
+            # Extract markdown links like [text](path.md)
+            links=$(grep -oP '\]\((?!http)([^)]+)\)' "$md_file" | sed 's/\](//' | sed 's/)//')
+            for link in $links; do
+              target_dir=$(dirname "$md_file")
+              if [[ ! -f "${target_dir}/${link}" && ! -f "${link}" ]]; then
+                echo "BROKEN LINK: ${md_file} -> ${link}"
+                EXIT_CODE=1
+              fi
+            done
+          done
+          if [[ ${EXIT_CODE} -eq 0 ]]; then
+            echo "All internal links OK"
+          fi
+          exit ${EXIT_CODE}
+
+      - name: Check quality score is up to date
+        run: |
+          echo "=== Reminder: review docs/QUALITY_SCORE.md ==="
+          echo "Last modified: $(stat -c %y docs/QUALITY_SCORE.md 2>/dev/null || stat -f %Sm docs/QUALITY_SCORE.md 2>/dev/null || echo 'unknown')"

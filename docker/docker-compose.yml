@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: mautic
+      MYSQL_DATABASE: mautic_test
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "--silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  mautic:
+    image: php:8.2-cli
+    working_dir: /var/www/mautic
+    volumes:
+      - ${MAUTIC_PATH:-.}/mautic:/var/www/mautic
+      - ${PLUGIN_PATH:-.}/plugin:/var/www/mautic/plugins/MautomicCrmBundle
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      APP_ENV: test
+      DATABASE_URL: mysql://root:mautic@mysql:3306/mautic_test
+    command: >
+      bash -c "
+        php bin/console mautic:install http://localhost --force --no-interaction &&
+        php bin/phpunit plugins/MautomicCrmBundle/Tests/
+      "
+
+volumes:
+  mysql_data:

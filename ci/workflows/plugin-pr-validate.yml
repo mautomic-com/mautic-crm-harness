@@ -1,0 +1,100 @@
+name: Validate Plugin PR
+
+on:
+  workflow_dispatch:
+    inputs:
+      plugin_ref:
+        description: 'Plugin branch or SHA to validate'
+        required: true
+        default: 'main'
+      mautic_version:
+        description: 'Mautic version to test against'
+        required: true
+        default: '7.0'
+
+  repository_dispatch:
+    types: [plugin-pr-opened, plugin-pr-updated]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: mautic
+          MYSQL_DATABASE: mautic_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+
+    env:
+      PLUGIN_REF: ${{ github.event.inputs.plugin_ref || github.event.client_payload.plugin_ref || 'main' }}
+      MAUTIC_VERSION: ${{ github.event.inputs.mautic_version || '7.0' }}
+
+    steps:
+      - name: Checkout harness
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, xml, ctype, iconv, intl, pdo_mysql, dom, filter, gd, json, zip
+          tools: composer:v2
+          coverage: none
+
+      - name: Clone Mautic
+        run: |
+          git clone --depth 1 --branch ${{ env.MAUTIC_VERSION }} https://github.com/mautic/mautic.git mautic
+          cd mautic
+          composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Clone plugin
+        run: |
+          git clone --depth 1 --branch ${{ env.PLUGIN_REF }} https://github.com/mautomic-com/mautic-crm-bundle.git plugin
+
+      - name: Link plugin into Mautic
+        run: |
+          ln -s ${{ github.workspace }}/plugin ${{ github.workspace }}/mautic/plugins/MautomicCrmBundle
+          cd mautic && composer dump-autoload
+
+      - name: Architecture validation
+        run: ./harness/validate-architecture.sh ${{ github.workspace }}/plugin
+
+      - name: PHPStan
+        working-directory: mautic
+        run: |
+          php vendor/bin/phpstan analyse plugins/MautomicCrmBundle --level=6 --no-progress || true
+
+      - name: Coding standards
+        working-directory: mautic
+        run: |
+          php vendor/bin/php-cs-fixer fix plugins/MautomicCrmBundle --dry-run --diff --config=.php-cs-fixer.php || true
+
+      - name: Unit tests
+        working-directory: mautic
+        run: |
+          php bin/phpunit plugins/MautomicCrmBundle/Tests/Unit/ --testdox
+
+      - name: Install Mautic for functional tests
+        working-directory: mautic
+        env:
+          APP_ENV: test
+          DATABASE_URL: mysql://root:mautic@127.0.0.1:3306/mautic_test
+        run: |
+          php bin/console mautic:install http://localhost --force --no-interaction || true
+          php bin/console cache:clear --env=test
+
+      - name: Functional tests
+        working-directory: mautic
+        env:
+          APP_ENV: test
+          DATABASE_URL: mysql://root:mautic@127.0.0.1:3306/mautic_test
+        run: |
+          php bin/phpunit -c app/phpunit.xml.dist plugins/MautomicCrmBundle/Tests/Functional/ --testdox
