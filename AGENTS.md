@@ -108,6 +108,13 @@ git checkout -b feature/NNN-short-name
 
 Write the code following Mautic patterns. Reference `docs/references/` if needed.
 
+**Every feature MUST include tests.** Write tests alongside the feature code:
+- **Unit tests** for pure logic (entities, repositories, services)
+- **Functional tests** for controller responses, form rendering, entity persistence
+- **API tests** for any new or changed API endpoints
+
+The feature spec's "Tests Required" section lists the minimum. Add more if you see gaps.
+
 ### Step 4: Run Automated Checks (ALL must pass)
 
 ```bash
@@ -118,6 +125,43 @@ Write the code following Mautic patterns. Reference `docs/references/` if needed
 
 If tests fail, fix them. If PHPStan reports errors, fix them.
 **Do NOT proceed until all checks pass.**
+
+### Step 4b: Reset Local Mautic (MANDATORY before browser tests)
+
+Wipe the database and reinstall Mautic to ensure a clean slate with no leftover data from previous features.
+
+```bash
+# From Mautic root (mautic-001/)
+ddev exec php bin/console doctrine:database:drop --force
+ddev exec php bin/console doctrine:database:create
+ddev exec rm config/local.php
+ddev exec php bin/console mautic:install https://mautic-001.ddev.site --force \
+  --db_driver=pdo_mysql --db_host=db --db_port=3306 --db_name=db --db_user=db --db_password=db \
+  --admin_firstname=Admin --admin_lastname=User --admin_username=admin \
+  --admin_email=admin@mautic.local --admin_password='Maut1cR0cks!'
+```
+
+Then re-enable API and mailer settings (install resets config/local.php):
+
+```bash
+# Write a temp PHP script to patch config/local.php:
+cat > tmp_config_fix.php << 'PHPEOF'
+<?php
+include 'config/local.php';
+$parameters['api_enabled'] = true;
+$parameters['api_enable_basic_auth'] = true;
+$parameters['mailer_dsn'] = 'smtp://localhost:1025';
+$parameters['mailer_from_email'] = 'mautic@ddev.local';
+$parameters['mailer_from_name'] = 'DDEV';
+$parameters['install_source'] = 'DDEV';
+file_put_contents('config/local.php', "<?php\n\$parameters = " . var_export($parameters, true) . ";\n");
+echo "Config updated\n";
+PHPEOF
+ddev exec php tmp_config_fix.php && rm tmp_config_fix.php
+ddev exec rm -rf var/cache
+```
+
+This takes ~15 seconds. **Do not skip this step** — stale data from previous features causes flaky browser tests.
 
 ### Step 5: Browser Smoke Tests (MANDATORY)
 
@@ -249,6 +293,7 @@ Lessons learned from Phase 1. **Read these before coding.**
 | Mautic cache | After entity changes, clear test cache: `ddev exec rm -rf var/cache/test` |
 | Functional tests | Must use `-c app/phpunit.xml.dist` flag for `KERNEL_CLASS` env var. |
 | PHPStan needs cache | Build first: `ddev exec bash -c 'APP_ENV=test APP_DEBUG=1 php bin/console > /dev/null 2>&1'` |
+| Lead entity field names | Use `firstname`, `lastname` (lowercase, not camelCase) in DQL/QueryBuilder — Lead uses custom Doctrine metadata. |
 | Browser: debug toolbar | Always hide after nav: JS `document.querySelector('.sf-toolbar').style.display='none'` |
 | Browser: form submit | Use JS `document.querySelector('form')?.submit()` — Save dropdown refs go stale |
 | Browser: direct URLs | Navigate to `/s/mautomic/{entity}/view/{id}` directly, don't click through menus |
