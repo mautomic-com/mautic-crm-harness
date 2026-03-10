@@ -10,9 +10,8 @@ It is the map — not the manual. Start here, then follow pointers to deeper doc
 | Architecture overview | [ARCHITECTURE.md](ARCHITECTURE.md)         |
 | Product specs         | [docs/product-specs/](docs/product-specs/) |
 | Design docs           | [docs/design-docs/](docs/design-docs/)     |
-| Feature backlog       | [docs/exec-plans/backlog/](docs/exec-plans/backlog/) |
-| Feature template      | [docs/exec-plans/templates/FEATURE_TEMPLATE.md](docs/exec-plans/templates/FEATURE_TEMPLATE.md) |
-| Completed features    | [docs/exec-plans/done/](docs/exec-plans/done/) |
+| Feature backlog       | [GitHub Issues](https://github.com/mautomic-com/mautic-crm-bundle/issues?q=is%3Aissue+is%3Aopen+label%3Aenhancement) |
+| Completed features    | [GitHub Closed Issues](https://github.com/mautomic-com/mautic-crm-bundle/issues?q=is%3Aissue+is%3Aclosed) |
 | Coding standards      | [docs/CODING_STANDARDS.md](docs/CODING_STANDARDS.md) |
 | Testing strategy      | [docs/TESTING.md](docs/TESTING.md)         |
 | Mautic references     | [docs/references/](docs/references/)       |
@@ -89,11 +88,11 @@ Summary:
 
 ### Step 1: Read the Feature Spec
 
-```
-Read docs/exec-plans/backlog/feature-NNN-*.md
+```bash
+gh issue view <NUMBER> --repo mautomic-com/mautic-crm-bundle
 ```
 
-Understand all acceptance criteria, browser smoke tests, and technical notes.
+Read the assigned GitHub issue. Understand all acceptance criteria, browser smoke tests, and technical notes.
 If anything is unclear, ask before starting.
 
 ### Step 2: Create a Feature Branch
@@ -319,12 +318,8 @@ ddev exec bin/php-cs-fixer fix plugins/MautomicCrmBundle/ --dry-run --diff --con
 
 ## Feature Backlog
 
-| # | Feature | Status | Spec |
-|---|---------|--------|------|
-| 001 | Phase 1 Bug Fixes & Polish | Backlog | [feature-001](docs/exec-plans/backlog/feature-001-phase1-bugfixes.md) |
-| 002 | Task-Deal Linking | Backlog | [feature-002](docs/exec-plans/backlog/feature-002-task-deal-linking.md) |
-| 003 | Notes & Activity Timeline | Backlog | [feature-003](docs/exec-plans/backlog/feature-003-notes-timeline.md) |
-| 004 | Deal Stage Movement & History | Backlog | [feature-004](docs/exec-plans/backlog/feature-004-deal-stage-moves.md) |
-| 005 | Pipeline Board View (Kanban) | Backlog | [feature-005](docs/exec-plans/backlog/feature-005-deal-board-view.md) |
-| 006 | Campaign Triggers & Actions | Backlog | [feature-006](docs/exec-plans/backlog/feature-006-campaign-triggers.md) |
-| 007 | Custom Deal Fields | Backlog | [feature-007](docs/exec-plans/backlog/feature-007-custom-deal-fields.md) |
+**GitHub Issues are the single source of truth for what to build.**
+See: https://github.com/mautomic-com/mautic-crm-bundle/issues?q=is%3Aissue+is%3Aopen+label%3Aenhancement
+
+Before starting work, check the open issues list for the next feature to implement.
+Each issue contains the full spec: acceptance criteria, browser smoke tests, technical notes, and required tests.
