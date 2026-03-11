@@ -97,7 +97,7 @@ ddev exec php bin/console mautic:install "${SITE_URL}" --force \
 
 echo ""
 echo "=== Step 3: Patch config ==="
-cat > /tmp/mautic_config_patch.php << 'PHPEOF'
+cat > "${MAUTIC_PATH}/_preview_config_patch.php" << 'PHPEOF'
 <?php
 include 'config/local.php';
 $parameters['api_enabled'] = true;
@@ -109,8 +109,8 @@ $parameters['install_source'] = 'DDEV';
 file_put_contents('config/local.php', "<?php\n\$parameters = " . var_export($parameters, true) . ";\n");
 echo "Config patched.\n";
 PHPEOF
-ddev exec php /tmp/mautic_config_patch.php
-rm -f /tmp/mautic_config_patch.php
+ddev exec php _preview_config_patch.php
+rm -f "${MAUTIC_PATH}/_preview_config_patch.php"
 
 echo ""
 echo "=== Step 4: Clear cache ==="
