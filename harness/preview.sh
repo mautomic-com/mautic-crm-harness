@@ -109,7 +109,7 @@ $parameters['install_source'] = 'DDEV';
 file_put_contents('config/local.php', "<?php\n\$parameters = " . var_export($parameters, true) . ";\n");
 echo "Config patched.\n";
 PHPEOF
-sleep 2  # wait for DDEV/Mutagen file sync
+sleep 5  # wait for DDEV/Mutagen file sync
 ddev exec php _preview_config_patch.php
 rm -f "${MAUTIC_PATH}/_preview_config_patch.php"
 
